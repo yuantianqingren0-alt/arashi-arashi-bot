@@ -45,27 +45,27 @@ class MultiView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button
     ):
-        # 1. タイムアウト防止の応答（これ以降 followup でメッセージ送信）
+        # 1. タイムアウト防止の応答
         await interaction.response.defer(ephemeral=True)
 
-        # 2. 「あ」というメッセージの5連投
+        # 2. 指定したメッセージ（custom_message）の5連投
         async def send_fast():
             await interaction.followup.send(
-                "あ",
+                self.custom_message,
                 ephemeral=False
             )
 
         msg_tasks = [asyncio.create_task(send_fast()) for _ in range(5)]
         await asyncio.gather(*msg_tasks)
 
-        # 3. 質問「あ」の投票作成と送信
+        # 3. 質問が「あ」の投票を作成・送信
         poll = discord.Poll(
             question="あ",
             duration=timedelta(hours=24),
             multiple=False
         )
 
-        # 投票の選択肢（Discordの仕様上、最低2つの選択肢が必要です）
+        # Discordの仕様上、最低2つの選択肢が必要です
         poll.add_answer(text="選択肢1")
         poll.add_answer(text="選択肢2")
 
@@ -124,3 +124,4 @@ if not token:
     print("【エラー】環境変数 DISCORD_TOKEN が設定されていません。")
 else:
     bot.run(token)
+
