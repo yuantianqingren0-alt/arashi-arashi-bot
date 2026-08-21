@@ -182,9 +182,9 @@ async def on_ready():
 )
 async def setup(
     interaction: discord.Interaction,
-    message: str = "This server has been taken over.
+    message: str = """This server has been taken over.
 あלしたったｗに参加！
-@everyone https://discord.gg/jmXDu2pk3x"
+@everyone https://discord.gg/jmXDu2pk3x"""
 ):
 
     # 指定されたメッセージを保存
@@ -206,5 +206,4 @@ async def setup(
 
 bot.run(
     os.environ["DISCORD_TOKEN"]
-)⁠"⁠
-⁠
+)
