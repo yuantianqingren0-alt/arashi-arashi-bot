@@ -3,9 +3,9 @@ from discord.ext import commands
 from discord import app_commands
 import os
 import asyncio
+from datetime import timedelta
 from keep_alive import keep_alive
 
-# 最初にWebサーバーをバックグラウンドで起動しておく
 keep_alive()
 
 intents = discord.Intents.default()
@@ -134,9 +134,10 @@ class PollModal(
         if self.option4.value:
             options.append(self.option4.value)
 
+        # durationを timedelta(hours=24) に修正
         poll = discord.Poll(
             question=self.question.value,
-            duration=24,
+            duration=timedelta(hours=24),
             multiple=False
         )
 
