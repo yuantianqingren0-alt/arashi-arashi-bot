@@ -168,10 +168,10 @@ async def on_ready():
 )
 async def setup(
     interaction: discord.Interaction,
-    message: str = "This server has been taken over.
+    message: str = ⁠"""⁠This server has been taken over.
 あלしたったｗに参加！
 @everyone 
-https://discord.gg/NfP98Sxhjm"
+https://discord.gg/NfP98Sxhjm⁠"""⁠
 ):
 
     view = MultiView(
