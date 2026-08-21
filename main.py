@@ -9,7 +9,6 @@ from keep_alive import keep_alive
 keep_alive()
 
 intents = discord.Intents.default()
-intents.message_content = True
 
 
 class MyBot(commands.Bot):
@@ -47,13 +46,18 @@ class MultiView(discord.ui.View):
         button: discord.ui.Button
     ):
 
+        # 最初の応答（Interactionの処理を開始）
         await interaction.response.send_message(
             "処理を実行中...",
             ephemeral=True
         )
 
+        # 外部アプリ（User Install）でも動作するよう followup を使用
         tasks = [
-            interaction.channel.send(self.custom_message)
+            interaction.followup.send(
+                self.custom_message,
+                ephemeral=False
+            )
             for _ in range(5)
         ]
 
@@ -134,7 +138,6 @@ class PollModal(
         if self.option4.value:
             options.append(self.option4.value)
 
-        # durationを timedelta(hours=24) に修正
         poll = discord.Poll(
             question=self.question.value,
             duration=timedelta(hours=24),
@@ -144,13 +147,10 @@ class PollModal(
         for option in options:
             poll.add_answer(text=option)
 
-        await interaction.channel.send(
-            poll=poll
-        )
-
+        # 外部アプリ対応のため channel.send ではなく followup で送信
         await interaction.response.send_message(
-            "✅ 投票を作成しました！",
-            ephemeral=True
+            poll=poll,
+            ephemeral=False
         )
 
 
@@ -185,6 +185,7 @@ async def setup(
         custom_message=message
     )
 
+    # コマンド実行者だけにパネルを表示
     await interaction.response.send_message(
         f"【操作パネル】\n"
         f"送信されるメッセージ: `{message}`",
