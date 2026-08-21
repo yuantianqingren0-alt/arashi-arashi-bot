@@ -168,10 +168,7 @@ async def on_ready():
 )
 async def setup(
     interaction: discord.Interaction,
-    message: str =⁠"""⁠This server has been taken over.
-あלしたったｗに参加！
-@everyone 
-https://discord.gg/NfP98Sxhjm⁠"""⁠
+    message: str = "デフォルトメッセージ"
 ):
 
     view = MultiView(
@@ -196,4 +193,3 @@ if not token:
     print("【エラー】環境変数 DISCORD_TOKEN が設定されていません。")
 else:
     bot.run(token)
-
