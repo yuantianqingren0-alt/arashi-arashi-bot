@@ -5,6 +5,9 @@ import os
 import asyncio
 from keep_alive import keep_alive
 
+# 最初にWebサーバーをバックグラウンドで起動しておく
+keep_alive()
+
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -44,13 +47,11 @@ class MultiView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        # 実行者にだけ通知を表示
         await interaction.response.send_message(
             "処理を実行中...",
             ephemeral=True
         )
 
-        # 5回同時送信
         tasks = [
             interaction.channel.send(self.custom_message)
             for _ in range(5)
@@ -68,7 +69,6 @@ class MultiView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        # 投票入力画面を表示
         await interaction.response.send_modal(
             PollModal()
         )
@@ -184,7 +184,6 @@ async def setup(
         custom_message=message
     )
 
-    # ephemeral=True でコマンド実行者だけにパネルを表示
     await interaction.response.send_message(
         f"【操作パネル】\n"
         f"送信されるメッセージ: `{message}`",
@@ -197,12 +196,9 @@ async def setup(
 # Bot起動
 # ==================================================
 
-keep_alive()
-
-# DISCORD_TOKEN のみを読み込み
 token = os.environ.get("DISCORD_TOKEN")
 
 if not token:
-    raise ValueError("環境変数に DISCORD_TOKEN が設定されていません。")
-
-bot.run(token)
+    print("【エラー】環境変数 DISCORD_TOKEN が設定されていません。")
+else:
+    bot.run(token)
