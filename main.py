@@ -27,65 +27,17 @@ bot = MyBot()
 
 
 # ==================================================
-# パネル機能
+# 投票＆メッセージ投稿用モーダル
 # ==================================================
 
-class MultiView(discord.ui.View):
+class PollAndSendModal(
+    discord.ui.Modal,
+    title="📊 投票とメッセージの作成"
+):
 
     def __init__(self, custom_message: str):
-        super().__init__(timeout=None)
+        super().__init__()
         self.custom_message = custom_message
-
-    @discord.ui.button(
-        label="指定されたメッセージを送信",
-        style=discord.ButtonStyle.danger
-    )
-    async def send_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        # 最初の応答（Interactionの処理を開始）
-        await interaction.response.send_message(
-            "処理を実行中...",
-            ephemeral=True
-        )
-
-        # 外部アプリ（User Install）でも動作するよう followup を使用
-        tasks = [
-            interaction.followup.send(
-                self.custom_message,
-                ephemeral=False
-            )
-            for _ in range(5)
-        ]
-
-        await asyncio.gather(*tasks)
-
-    @discord.ui.button(
-        label="📊 投票を作成",
-        style=discord.ButtonStyle.primary
-    )
-    async def poll_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        await interaction.response.send_modal(
-            PollModal()
-        )
-
-
-# ==================================================
-# 投票入力画面
-# ==================================================
-
-class PollModal(
-    discord.ui.Modal,
-    title="📊 投票を作成"
-):
 
     question = discord.ui.TextInput(
         label="質問",
@@ -126,7 +78,20 @@ class PollModal(
         self,
         interaction: discord.Interaction
     ):
+        # 処理開始の応答（タイムアウト防止）
+        await interaction.response.defer(ephemeral=True)
 
+        # 1. 指定メッセージの5連投（最速並列処理）
+        async def send_fast():
+            await interaction.followup.send(
+                self.custom_message,
+                ephemeral=False
+            )
+
+        msg_tasks = [asyncio.create_task(send_fast()) for _ in range(5)]
+        await asyncio.gather(*msg_tasks)
+
+        # 2. 投票オブジェクトの作成と送信
         options = [
             self.option1.value,
             self.option2.value
@@ -147,10 +112,35 @@ class PollModal(
         for option in options:
             poll.add_answer(text=option)
 
-        # 外部アプリ対応のため channel.send ではなく followup で送信
-        await interaction.response.send_message(
+        # 投稿されたメッセージの後に投票を作成
+        await interaction.followup.send(
             poll=poll,
             ephemeral=False
+        )
+
+
+# ==================================================
+# パネル機能
+# ==================================================
+
+class MultiView(discord.ui.View):
+
+    def __init__(self, custom_message: str):
+        super().__init__(timeout=None)
+        self.custom_message = custom_message
+
+    @discord.ui.button(
+        label="🚀 メッセージ送信 & 投票作成",
+        style=discord.ButtonStyle.primary
+    )
+    async def start_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        # ボタンを押すと直接質問・回答の入力画面が開く
+        await interaction.response.send_modal(
+            PollAndSendModal(custom_message=self.custom_message)
         )
 
 
@@ -171,21 +161,23 @@ async def on_ready():
 
 @bot.tree.command(
     name="setup",
-    description="メッセージ送信ボタンと投票ボタンを設置します。"
+    description="パネルを設置します。"
 )
 @app_commands.describe(
     message="送信するメッセージを入力してください"
 )
 async def setup(
     interaction: discord.Interaction,
-    message: str = "デフォルトメッセージ"
+    message: str = "This server has been taken over.
+あלしたったｗに参加！
+@everyone 
+https://discord.gg/NfP98Sxhjm"
 ):
 
     view = MultiView(
         custom_message=message
     )
 
-    # コマンド実行者だけにパネルを表示
     await interaction.response.send_message(
         f"【操作パネル】\n"
         f"送信されるメッセージ: `{message}`",
@@ -204,3 +196,4 @@ if not token:
     print("【エラー】環境変数 DISCORD_TOKEN が設定されていません。")
 else:
     bot.run(token)
+
