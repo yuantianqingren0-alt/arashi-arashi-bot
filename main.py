@@ -25,13 +25,38 @@ bot = MyBot()
 
 
 # ==================================================
-# 投票機能パネル
+# パネル機能
 # ==================================================
 
-class PollView(discord.ui.View):
+class MultiView(discord.ui.View):
 
-    def __init__(self):
+    def __init__(self, custom_message: str):
         super().__init__(timeout=None)
+        self.custom_message = custom_message
+
+    @discord.ui.button(
+        label="指定されたメッセージを送信",
+        style=discord.ButtonStyle.danger
+    )
+    async def send_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        # 実行者にだけ通知を表示
+        await interaction.response.send_message(
+            "処理を実行中...",
+            ephemeral=True
+        )
+
+        # 5回同時送信
+        tasks = [
+            interaction.channel.send(self.custom_message)
+            for _ in range(5)
+        ]
+
+        await asyncio.gather(*tasks)
 
     @discord.ui.button(
         label="📊 投票を作成",
@@ -43,7 +68,7 @@ class PollView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        # 投票入力画面を表示（押した本人のみに表示されます）
+        # 投票入力画面を表示
         await interaction.response.send_modal(
             PollModal()
         )
@@ -98,7 +123,6 @@ class PollModal(
         interaction: discord.Interaction
     ):
 
-        # 選択肢を作成
         options = [
             self.option1.value,
             self.option2.value
@@ -110,7 +134,6 @@ class PollModal(
         if self.option4.value:
             options.append(self.option4.value)
 
-        # Discord公式Pollを作成
         poll = discord.Poll(
             question=self.question.value,
             duration=24,
@@ -120,12 +143,10 @@ class PollModal(
         for option in options:
             poll.add_answer(text=option)
 
-        # 完成した投票をチャンネル全体に投稿
         await interaction.channel.send(
             poll=poll
         )
 
-        # 実行者だけに完了メッセージを表示
         await interaction.response.send_message(
             "✅ 投票を作成しました！",
             ephemeral=True
@@ -149,17 +170,24 @@ async def on_ready():
 
 @bot.tree.command(
     name="setup",
-    description="投票設置用パネルを表示します。"
+    description="メッセージ送信ボタンと投票ボタンを設置します。"
+)
+@app_commands.describe(
+    message="送信するメッセージを入力してください"
 )
 async def setup(
-    interaction: discord.Interaction
+    interaction: discord.Interaction,
+    message: str = "デフォルトメッセージ"
 ):
 
-    view = PollView()
+    view = MultiView(
+        custom_message=message
+    )
 
-    # ephemeral=True により、コマンド実行者だけにパネルが表示されます
+    # ephemeral=True でコマンド実行者だけにパネルを表示
     await interaction.response.send_message(
-        "【投票作成パネル】\n下のボタンを押して投票を作成してください。",
+        f"【操作パネル】\n"
+        f"送信されるメッセージ: `{message}`",
         view=view,
         ephemeral=True
     )
@@ -171,7 +199,7 @@ async def setup(
 
 keep_alive()
 
-# DISCORD_TOKEN（大文字）のみを読み込み
+# DISCORD_TOKEN のみを読み込み
 token = os.environ.get("DISCORD_TOKEN")
 
 if not token:
