@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import os
 import asyncio
+from keep_alive import keep_alive
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -204,6 +205,10 @@ async def setup(
 # Bot起動
 # ==================================================
 
+# Renderのポートを確保するためのWebサーバー起動
+keep_alive()
+
+# Botの実行
 bot.run(
     os.environ["DISCORD_TOKEN"]
 )
