@@ -25,38 +25,13 @@ bot = MyBot()
 
 
 # ==================================================
-# スパムボタン
+# 投票機能パネル
 # ==================================================
 
-class SpamView(discord.ui.View):
+class PollView(discord.ui.View):
 
-    def __init__(self, custom_message: str):
+    def __init__(self):
         super().__init__(timeout=None)
-        self.custom_message = custom_message
-
-    @discord.ui.button(
-        label="指定されたメッセージを送信",
-        style=discord.ButtonStyle.danger
-    )
-    async def spam_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-
-        # 起動者にだけ表示
-        await interaction.response.send_message(
-            "スパムを実行中...",
-            ephemeral=True
-        )
-
-        # 元の5回同時送信機能
-        tasks = [
-            interaction.channel.send(self.custom_message)
-            for _ in range(5)
-        ]
-
-        await asyncio.gather(*tasks)
 
     @discord.ui.button(
         label="📊 投票を作成",
@@ -68,7 +43,7 @@ class SpamView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        # 投票入力画面を表示
+        # 投票入力画面を表示（押した本人のみに表示されます）
         await interaction.response.send_modal(
             PollModal()
         )
@@ -129,7 +104,6 @@ class PollModal(
             self.option2.value
         ]
 
-        # 任意の選択肢
         if self.option3.value:
             options.append(self.option3.value)
 
@@ -143,16 +117,15 @@ class PollModal(
             multiple=False
         )
 
-        # 選択肢を追加
         for option in options:
             poll.add_answer(text=option)
 
-        # 投票をチャンネルに投稿
+        # 完成した投票をチャンネル全体に投稿
         await interaction.channel.send(
             poll=poll
         )
 
-        # 実行者だけに表示
+        # 実行者だけに完了メッセージを表示
         await interaction.response.send_message(
             "✅ 投票を作成しました！",
             ephemeral=True
@@ -176,28 +149,19 @@ async def on_ready():
 
 @bot.tree.command(
     name="setup",
-    description="メッセージ送信ボタンと投票ボタンを設置します。"
-)
-@app_commands.describe(
-    message="連投するメッセージを入力してください"
+    description="投票設置用パネルを表示します。"
 )
 async def setup(
-    interaction: discord.Interaction,
-    message: str = """This server has been taken over.
-あלしたったｗに参加！
-@everyone https://discord.gg/jmXDu2pk3x"""
+    interaction: discord.Interaction
 ):
 
-    # 指定されたメッセージを保存
-    view = SpamView(
-        custom_message=message
-    )
+    view = PollView()
 
-    # ボタンを表示
+    # ephemeral=True により、コマンド実行者だけにパネルが表示されます
     await interaction.response.send_message(
-        f"【ボタンパネル】\n"
-        f"送信されるメッセージ: `{message}`",
-        view=view
+        "【投票作成パネル】\n下のボタンを押して投票を作成してください。",
+        view=view,
+        ephemeral=True
     )
 
 
@@ -205,10 +169,12 @@ async def setup(
 # Bot起動
 # ==================================================
 
-# Renderのポートを確保するためのWebサーバー起動
 keep_alive()
 
-# Botの実行
-bot.run(
-    os.environ["DISCORD_TOKEN"]
-)
+# DISCORD_TOKEN（大文字）のみを読み込み
+token = os.environ.get("DISCORD_TOKEN")
+
+if not token:
+    raise ValueError("環境変数に DISCORD_TOKEN が設定されていません。")
+
+bot.run(token)
