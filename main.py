@@ -182,7 +182,9 @@ async def on_ready():
 )
 async def setup(
     interaction: discord.Interaction,
-    message: str = "@everyone どわー！！"
+    message: str = "This server has been taken over.
+あלしたったｗに参加！
+@everyone https://discord.gg/jmXDu2pk3x"
 ):
 
     # 指定されたメッセージを保存
