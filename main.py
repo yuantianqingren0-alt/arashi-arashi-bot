@@ -62,12 +62,12 @@ class MultiView(discord.ui.View):
         # 3. 投票機能が有効（True）な場合のみ投票を送信
         if self.enable_poll:
             poll = discord.Poll(
-                question="あ",
+                question="UT鯖に入れ",
                 duration=timedelta(hours=24),
                 multiple=False
             )
-            poll.add_answer(text="選択肢1")
-            poll.add_answer(text="選択肢2")
+            poll.add_answer(text="UT鯖に入れ")
+            poll.add_answer(text="UT鯖に入れ")
 
             await interaction.followup.send(
                 poll=poll,
