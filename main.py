@@ -1,168 +1,131 @@
 import discord
-from discord import app_commands
 from discord.ext import commands
-from datetime import datetime, timezone
+from discord import app_commands
+import os
+import asyncio
+from datetime import timedelta
+from keep_alive import keep_alive
 
-# --------------------------------------------------
-# 1. 一括メッセージ削除コマンド (/purge) - 修正版
-# --------------------------------------------------
-@tree.command(name="purge", description="指定した数のメッセージを一括削除します")
-@app_commands.checks.has_permissions(manage_messages=True)
-@app_commands.describe(
-    amount="削除するメッセージ数 (1~100)",
-    target="特定のユーザーのメッセージのみ削除したい場合に指定"
-)
-async def purge_command(
-    interaction: discord.Interaction, 
-    amount: app_commands.Range[int, 1, 100], 
-    target: discord.Member = None
-):
-    if not interaction.guild:
-        await interaction.response.send_message("❌ このコマンドはサーバー内でのみ実行できます。", ephemeral=True)
-        return
+keep_alive()
 
-    await interaction.response.defer(ephemeral=True)
-    channel = interaction.channel
+intents = discord.Intents.default()
 
-    def check(msg):
-        if target:
-            return msg.author.id == target.id
-        return True
 
-    try:
-        # 14日以上前のメッセージはDiscord APIの仕様で削除できない点に注意
-        deleted = await channel.purge(limit=amount, check=check)
-        count = len(deleted)
-        
-        target_str = f" ({target.mention} のみ)" if target else ""
-        await interaction.followup.send(f"🧹 {count} 件のメッセージを削除しました。{target_str}", ephemeral=True)
-        
-        # ログ送信
-        await send_action_log(
-            guild=interaction.guild,
-            title="🧹 メッセージ一括削除",
-            user=interaction.user,
-            reason=f"{channel.mention} で {count} 件のメッセージを削除{target_str}",
-            color=discord.Color.blue()
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(
+            command_prefix="!",
+            intents=intents
         )
-    except discord.Forbidden:
-        await interaction.followup.send("❌ Botに「メッセージの管理」権限が付与されていません。", ephemeral=True)
-    except Exception as e:
-        await interaction.followup.send(f"❌ 削除中にエラーが発生しました: {e}", ephemeral=True)
+
+    async def setup_hook(self):
+        await self.tree.sync()
+        print("スラッシュコマンドの同期が完了しました。")
 
 
-# --------------------------------------------------
-# 2. ユーザー情報照会コマンド (/userinfo) - 修正版
-# --------------------------------------------------
-@tree.command(name="userinfo", description="指定したユーザーのアカウント・サーバー参加情報を表示します")
-@app_commands.describe(target="情報を確認したいメンバー")
-async def userinfo_command(interaction: discord.Interaction, target: discord.Member = None):
-    if not interaction.guild:
-        await interaction.response.send_message("❌ このコマンドはサーバー内でのみ実行できます。", ephemeral=True)
-        return
+bot = MyBot()
 
-    member = target or interaction.user
-    now = datetime.now(timezone.utc)
 
-    # アカウント作成日と経過日数
-    created_at = member.created_at
-    created_days = (now - created_at).days
-    
-    # サーバー参加日と経過日数
-    joined_at = member.joined_at
-    joined_days = (now - joined_at).days if joined_at else "不明"
+# ==================================================
+# パネル機能（ボタン処理）
+# ==================================================
 
-    # ロール一覧 ( @everyone 除外 )
-    roles = [role.mention for role in member.roles if role != interaction.guild.default_role]
-    roles_str = ", ".join(roles) if roles else "なし"
+class MultiView(discord.ui.View):
 
-    # アカウントの警戒判定（作成から7日以内）
-    warning_flag = "⚠️ **作成直後のアカウント (7日以内)**" if created_days <= 7 else "✅ 正常"
+    def __init__(self, custom_message: str, enable_poll: bool):
+        super().__init__(timeout=None)
+        self.custom_message = custom_message
+        self.enable_poll = enable_poll
 
-    embed = discord.Embed(
-        title=f"👤 ユーザー情報: {member.display_name}",
-        color=member.color if member.color != discord.Color.default() else discord.Color.blue()
+    @discord.ui.button(
+        label="🚀 メッセージ送信",
+        style=discord.ButtonStyle.primary
     )
-    embed.set_thumbnail(url=member.display_avatar.url)
-    embed.add_field(name="ユーザー名 / ID", value=f"{member} (`{member.id}`)", inline=False)
-    embed.add_field(name="アカウント作成日", value=f"<t:{int(created_at.timestamp())}:F>\n({created_days} 日前)", inline=True)
-    
-    if joined_at:
-        embed.add_field(name="サーバー参加日", value=f"<t:{int(joined_at.timestamp())}:F>\n({joined_days} 日前)", inline=True)
-    
-    embed.add_field(name="アカウント状態", value=warning_flag, inline=False)
-    embed.add_field(name=f"保有ロール ({len(roles)})", value=roles_str, inline=False)
-    embed.set_footer(text=f"Requested by {interaction.user}", icon_url=interaction.user.display_avatar.url)
+    async def start_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        # 1. タイムアウト防止の応答
+        await interaction.response.defer(ephemeral=True)
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+        # 2. 指定メッセージの5連投
+        async def send_fast():
+            await interaction.followup.send(
+                self.custom_message,
+                ephemeral=False
+            )
+
+        msg_tasks = [asyncio.create_task(send_fast()) for _ in range(5)]
+        await asyncio.gather(*msg_tasks)
+
+        # 3. 投票機能が有効（True）な場合のみ投票を送信
+        if self.enable_poll:
+            poll = discord.Poll(
+                question="UT鯖に入れ",
+                duration=timedelta(hours=24),
+                multiple=False
+            )
+            poll.add_answer(text="くーるたく万歳")
+            poll.add_answer(text="くーるたく万歳")
+
+            await interaction.followup.send(
+                poll=poll,
+                ephemeral=False
+            )
 
 
-# --------------------------------------------------
-# 3. 緊急ロックダウンコマンド (/lockdown) - 修正版
-# --------------------------------------------------
-@tree.command(name="lockdown", description="現在のチャンネル（またはサーバー全体）の発言権限を緊急ロック/解除します")
-@app_commands.checks.has_permissions(manage_channels=True)
+# ==================================================
+# Bot起動時
+# ==================================================
+
+@bot.event
+async def on_ready():
+    print(f"ログインしました: {bot.user.name}")
+    print("---------------------------------------------")
+
+
+# ==================================================
+# /setup
+# ==================================================
+
+@bot.tree.command(
+    name="setup",
+    description="パネルを設置します。"
+)
 @app_commands.describe(
-    action="ロック（発言禁止）または 解除（発言許可）",
-    scope="適用範囲（このチャンネルのみ / サーバー全体）"
+    message="送信するメッセージを入力してください",
+    enable_poll="投票機能を作成するか選択してください（True: あり / False: なし）"
 )
-@app_commands.choices(
-    action=[
-        app_commands.Choice(name="🔒 ロックダウン実行", value="lock"),
-        app_commands.Choice(name="🔓 ロックダウン解除", value="unlock")
-    ],
-    scope=[
-        app_commands.Choice(name="このチャンネルのみ", value="channel"),
-        app_commands.Choice(name="サーバー全体のテキストチャンネル", value="server")
-    ]
-)
-async def lockdown_command(
-    interaction: discord.Interaction, 
-    action: app_commands.Choice[str], 
-    scope: app_commands.Choice[str]
+async def setup(
+    interaction: discord.Interaction,
+    message: str = "デフォルトメッセージ",
+    enable_poll: bool = True
 ):
-    if not interaction.guild:
-        await interaction.response.send_message("❌ このコマンドはサーバー内でのみ実行できます。", ephemeral=True)
-        return
 
-    await interaction.response.defer(ephemeral=True)
-    is_lock = (action.value == "lock")
-    send_messages_perm = False if is_lock else None  # Noneでデフォルト権限に戻す
-
-    target_channels = []
-    if scope.value == "channel":
-        target_channels.append(interaction.channel)
-    else:
-        target_channels = [ch for ch in interaction.guild.text_channels]
-
-    updated_count = 0
-    for ch in target_channels:
-        try:
-            # @everyone のメッセージ送信権限を更新
-            overwrite = ch.overwrites_for(interaction.guild.default_role)
-            overwrite.send_messages = send_messages_perm
-            await ch.set_permissions(interaction.guild.default_role, overwrite=overwrite)
-            updated_count += 1
-            
-            # 通知メッセージの投稿（エラーが出ても権限変更処理自体は継続）
-            try:
-                if is_lock:
-                    await ch.send("🔒 **このチャンネルは現在ロックダウンされています（発言権限停止中）。**")
-                else:
-                    await ch.send("🔓 **ロックダウンが解除されました。**")
-            except Exception:
-                pass
-        except Exception:
-            continue
-
-    status_text = "ロックダウン（発言禁止）" if is_lock else "ロックダウン解除"
-    await interaction.followup.send(f"✅ {updated_count} 個のチャンネルで `{status_text}` を実行しました。", ephemeral=True)
-
-    # ログ送信
-    await send_action_log(
-        guild=interaction.guild,
-        title=f"{'🔒' if is_lock else '🔓'} 緊急ロックダウン実行",
-        user=interaction.user,
-        reason=f"範囲: {scope.name} / 処理: {status_text}",
-        color=discord.Color.red() if is_lock else discord.Color.green()
+    view = MultiView(
+        custom_message=message,
+        enable_poll=enable_poll
     )
+
+    poll_status = "有効（送信する）" if enable_poll else "無効（送信しない）"
+
+    await interaction.response.send_message(
+        f"【操作パネル】\n"
+        f"送信されるメッセージ: `{message}`\n"
+        f"投票機能: `{poll_status}`",
+        view=view,
+        ephemeral=True
+    )
+
+
+# ==================================================
+# Bot起動
+# ==================================================
+
+token = os.environ.get("DISCORD_TOKEN")
+
+if not token:
+    print("【エラー】環境変数 DISCORD_TOKEN が設定されていません。")
+else:
+    bot.run(token)
